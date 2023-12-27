@@ -1,9 +1,7 @@
 import bcrypt from "bcrypt";
 import express from "express";
 import usersService from "../services/user.service";
-import { IUser, UserVerifyStatus } from "../types/user.type";
-import { USER_MESSAGE } from "../constants/message";
-import { UserModel } from "../models/schemas/User.schemas";
+import { UserModel } from "../models/user.schemas";
 import {
   AuthorizationRequest,
   EmailRequest,
