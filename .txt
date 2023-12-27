@@ -1,0 +1,28 @@
+|-- services/
+|   |-- user-service/
+|   |   |-- src/
+|   |   |   |-- controllers/
+|   |   |   |-- models/
+|   |   |   |-- routes/
+|   |   |   |-- app.ts
+|   |   |-- tsconfig.json
+|   |-- courses-service/
+|   |   |-- src/
+|   |   |   |-- controllers/
+|   |   |   |-- models/
+|   |   |   |-- routes/
+|   |   |   |-- app.ts
+|   |   |-- tsconfig.json
+|-- api-gateway/
+|   |-- src/
+|   |   |-- controllers/
+|   |   |-- routes/
+|   |   |-- app.ts
+|   |-- tsconfig.json
+|-- shared/
+|   |-- models/
+|   |-- utils/
+|-- package.json
+|-- tsconfig.json
+|-- .gitignore
+|-- docker-compose.yml
