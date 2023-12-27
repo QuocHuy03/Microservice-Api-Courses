@@ -24,6 +24,6 @@
     },
     "allowSyntheticDefaultImports": true
   },
-  "include": ["services/**/*.ts"],
+  "include": ["services/**/*.ts", "shared/**/*.ts"],
   "exclude": ["node_modules"]
 }
