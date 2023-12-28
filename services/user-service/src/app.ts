@@ -1,5 +1,5 @@
 const express = require("express");
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
@@ -34,8 +34,9 @@ app.get("/", (__: Request, res: Response) => {
 });
 
 app.use(
-  (err: ProjectError, __: Request, res: Response,) => {
-    let message: string;
+  (err: ProjectError, req: Request, res: Response, next: NextFunction) => {
+    // logger for err
+    let message: String;
     let statusCode: number;
 
     if (!!err.statusCode && err.statusCode < 500) {
@@ -46,16 +47,15 @@ app.use(
       statusCode = 500;
     }
 
-    let resp: ReturnResponse = { status: false, message, result: {} };
+    let resp: ReturnResponse = { status: false, message, data: {} };
     if (!!err.data) {
-      resp.result = err.data;
+      resp.data = err.data;
     }
 
     console.log(err.statusCode, err.message);
-    res.status(statusCode).json(resp);
+    res.status(statusCode).send(resp);
   }
 );
-
 
 mongoose
   .connect(process.env.MONGODB_CONNECT)

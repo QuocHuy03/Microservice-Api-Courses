@@ -3,7 +3,7 @@ import { UserRole, UserVerifyStatus } from "../utils/user.type";
 export interface ReturnResponse {
   status: true | false;
   message: String;
-  result?: {} | [];
+  data?: {} | [];
 }
 
 export interface EmailRequest {
