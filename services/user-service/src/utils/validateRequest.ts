@@ -1,25 +1,26 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { validationResult } from "express-validator";
 
-import ProjectError from "./error";
-
 const validateRequest: RequestHandler = (
   req: Request,
-  __: Response,
+  res: Response,
   next: NextFunction
 ) => {
   try {
     const validationError = validationResult(req);
     if (!validationError.isEmpty()) {
-      const err = new ProjectError("Validation failed!");
-      err.statusCode = 422;
-      err.data = validationError.array();
-      throw err;
+      // Return validation errors in the response data
+      return res.status(422).json({
+        status: false,
+        message: "Validation failed",
+        result: validationError.array(),
+      });
     }
     next();
   } catch (error) {
     next(error);
   }
+  return; // Add this line to satisfy TypeScript
 };
 
 export { validateRequest };
