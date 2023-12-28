@@ -13,6 +13,6 @@
     },
     "allowSyntheticDefaultImports": true
   },
-  "include": ["services/**/*.ts", "shared/**/*.ts"],
+  "include": ["services/**/*.ts", "api-gateway/*.ts"],
   "exclude": ["node_modules"]
 }
