@@ -14,10 +14,7 @@
 |   |   |   |-- app.ts
 |   |   |-- tsconfig.json
 |-- api-gateway/
-|   |-- src/
-|   |   |-- controllers/
-|   |   |-- routes/
-|   |   |-- app.ts
+|   |-- app.ts
 |   |-- tsconfig.json
 |-- shared/
 |   |-- models/
