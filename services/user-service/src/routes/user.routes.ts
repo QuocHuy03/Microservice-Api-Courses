@@ -1,10 +1,11 @@
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import express from "express";
 import {
   changePassword,
-  deleteUserByID,
   emailVerify,
   forgotPassword,
-  getMe,
+  getAllUser,
   getMeByID,
   login,
   loginGoogle,
@@ -14,24 +15,20 @@ import {
   resendVerifyEmail,
   resetPassword,
   updateMe,
-  updateUserByID,
   verifyForgotPassword,
 } from "../controllers/user.controller";
-import { isAdmin } from "../middlewares/isAuth.middleware";
+import { body, query } from "express-validator";
+import usersService from "../services/user.service";
+import { validateRequest } from "../utils/validateRequest";
+import {
+  isAdmin,
+  isAuthenticated,
+  verifiedUserValidator,
+} from "../middlewares/auth.middlewares";
+import { verifyToken } from "../utils/jwt";
+import { UserModel } from "../models/user.schemas";
 
 const router = express.Router();
-/**
- * Description: Đăng Ký,
- * Path: /register
- * Method : POST
- * Body : {
-            "fullname": "Le Quoc Huy",
-            "email": "qhuy.dev1@gmail.com",
-            "username": "huydev1",
-            "password": "19102003Huy",
-            "confirm_password": "19102003Huy"
-          }
- */
 /**
  * @swagger
  * tags:
@@ -64,17 +61,65 @@ const router = express.Router();
  *       400:
  *         description: Bad request
  */
-router.post("/register", resgiterValidator, register);
+router.post(
+  "/register",
+  [
+    body("fullname")
+      .trim()
+      .not()
+      .isEmpty()
+      .withMessage("Họ và tên là bắt buộc")
+      .isLength({ min: 4 })
+      .withMessage("Vui lòng nhập tên hợp lệ, dài tối thiểu 4 ký tự"),
+    body("email")
+      .trim()
+      .isEmpty()
+      .withMessage("Email là bắt buộc")
+      .isEmail()
+      .custom(async (value: any) => {
+        try {
+          const status = await usersService.checkExist("email", value);
 
-/**
- * Description: Đăng Nhập,
- * Path: /login
- * Method : POST
- * Body : {
-            "email": "qhuy.dev@gmail.com",
-            "password": "19102003Huy"
+          if (status) {
+            return Promise.reject("Người dùng đã tồn tại!");
           }
- */
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }),
+
+    body("password")
+      .trim()
+      .isEmpty()
+      .withMessage("Password là bắt buộc")
+      .isLength({ min: 8 })
+      .custom(async (password: string) => {
+        try {
+          const status = await usersService.isPasswordValid(password);
+
+          if (!status) {
+            return Promise.reject(
+              "Nhập mật khẩu hợp lệ, có ít nhất 8 ký tự gồm 1 chữ cái nhỏ, 1 chữ in hoa, 1 chữ số và 1 ký tự đặc biệt($,@,!,#,*)."
+            );
+          }
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }),
+    body("confirmPassword")
+      .trim()
+      .isEmpty()
+      .withMessage("ConfirmPassword là bắt buộc")
+      .custom((value: String, { req }) => {
+        if (value != req.body.password) {
+          return Promise.reject("Mật khẩu không khớp!");
+        }
+        return true;
+      }),
+  ],
+  validateRequest,
+  register
+);
 
 /**
  * @swagger
@@ -98,13 +143,39 @@ router.post("/register", resgiterValidator, register);
  *       401:
  *         description: Unauthorized
  */
-router.post("/login", loginValidator, login);
+router.post(
+  "/login",
+  [
+    body("email")
+      .trim()
+      .isEmpty()
+      .withMessage("Email là bắt buộc")
+      .isEmail()
+      .withMessage("Thông tin không hợp lệ!"),
+    body("password")
+      .trim()
+      .isEmpty()
+      .withMessage("Password là bắt buộc")
+      .isLength({ min: 8 })
+      .custom(async (password: string) => {
+        try {
+          const status = await usersService.isPasswordValid(password);
+          if (!status) {
+            return Promise.reject(
+              "Nhập mật khẩu hợp lệ, có ít nhất 8 ký tự gồm 1 chữ cái nhỏ, 1 chữ in hoa, 1 chữ số và 1 ký tự đặc biệt($,@,!,#,*)."
+            );
+          }
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      })
 
-/**
- * Description: Đăng Nhập Bằng Google,
- * Path: /google
- * Method : GET
- */
+      .withMessage("Thông tin không hợp lệ!"),
+  ],
+  validateRequest,
+  login
+);
+
 /**
  * @swagger
  * /google:
@@ -118,16 +189,6 @@ router.post("/login", loginValidator, login);
  *         description: Unauthorized
  */
 router.get("/google", loginGoogle);
-
-/**
- * Description: Đăng Xuất,
- * Path: /logout
- * Method : POST
- * Header : Authorization : Bearer <AccessToken Login>
- * Body : {
-            "refreshToken": "<RefreshToken>",
-          }
- */
 
 /**
  * @swagger
@@ -150,7 +211,7 @@ router.get("/google", loginGoogle);
  *         description: Unauthorized
  */
 
-router.post("/logout", accessTokenValidator, refreshTokenValidator, logout);
+router.post("/logout", isAuthenticated, logout);
 
 /**
  * Description: Refresh Token
@@ -161,7 +222,7 @@ router.post("/logout", accessTokenValidator, refreshTokenValidator, logout);
           }
  */
 
-          /**
+/**
  * @swagger
  * /refresh-token:
  *   post:
@@ -181,7 +242,36 @@ router.post("/logout", accessTokenValidator, refreshTokenValidator, logout);
  *       401:
  *         description: Unauthorized
  */
-router.post("/refresh-token", refreshTokenValidator, refreshToken);
+router.post(
+  "/refresh-token",
+  [
+    body("refreshToken")
+      .trim()
+      .isEmpty()
+      .withMessage("RefreshToken là bắt buộc")
+      .custom(async (value: String, { req }) => {
+        try {
+          const [decode_refreshToken, refreshToken] = await Promise.all([
+            verifyToken(value, process.env.REFRESH_TOKEN_SECRET),
+            UserModel.findOne({ refreshToken: value }),
+          ]);
+          if (refreshToken === null) {
+            return Promise.reject("Người dùng không tồn tại");
+          }
+          req.decode_refreshToken = decode_refreshToken;
+          return true;
+        } catch (error: any) {
+          if (error instanceof jwt.JsonWebTokenError) {
+            return Promise.reject(error.message);
+          } else {
+            return Promise.reject(error.message);
+          }
+        }
+      }),
+  ],
+  validateRequest,
+  refreshToken
+);
 
 /**
  * Description: Xác minh email khi người dùng khách hàng nhấp vào liên kết trong email,
@@ -205,7 +295,32 @@ router.post("/refresh-token", refreshTokenValidator, refreshToken);
  *       400:
  *         description: Bad request
  */
-router.get("/verify-email", emailVerifyTokenValidator, emailVerify);
+router.get(
+  "/verify-email",
+  [
+    query("email_verify_token").custom(async (value: String, { req }) => {
+      if (!value) {
+        return Promise.reject("Mã xác minh email là bắt buộc");
+      }
+      try {
+        const decode_email_verify_token = await verifyToken(
+          value,
+          process.env.EMAIL_VERIFY_TOKEN
+        );
+
+        req.decode_email_verify_token = decode_email_verify_token;
+      } catch (error: any) {
+        if (error instanceof jwt.JsonWebTokenError) {
+          return Promise.reject(error.message);
+        } else {
+          return Promise.reject(error.message);
+        }
+      }
+    }),
+  ],
+  validateRequest,
+  emailVerify
+);
 /**
  * Description: Gửi lại email xác minh
  * Path: /resend-verify-email
@@ -225,7 +340,7 @@ router.get("/verify-email", emailVerifyTokenValidator, emailVerify);
  *       401:
  *         description: Unauthorized
  */
-router.post("/resend-verify-email", accessTokenValidator, resendVerifyEmail);
+router.post("/resend-verify-email", isAuthenticated, resendVerifyEmail);
 
 /**
  * Description: Gửi email để reset password , gửi email cho người dùng
@@ -255,7 +370,26 @@ router.post("/resend-verify-email", accessTokenValidator, resendVerifyEmail);
  *       400:
  *         description: Bad request
  */
-router.post("/forgot-password", forgotPasswordValidator, forgotPassword);
+router.post(
+  "/forgot-password",
+  [
+    body("email")
+      .trim()
+      .isEmpty()
+      .withMessage("Email là bắt buộc")
+      .isEmail()
+      .withMessage("Thông tin email không hợp lệ")
+      .custom(async (value: String, { req }) => {
+        const result = await UserModel.findOne({ email: value });
+        if (result === null) {
+          return Promise.reject("Người dùng không tồn tại");
+        }
+        req.user = result;
+      }),
+  ],
+  validateRequest,
+  forgotPassword
+);
 
 /**
  * Description: Xác minh email liên kết để đặt lại mật khẩu
@@ -281,7 +415,37 @@ router.post("/forgot-password", forgotPasswordValidator, forgotPassword);
  */
 router.get(
   "/verify-forgot-password",
-  verfifyForgotPasswordTokenValidator,
+  [
+    query("forgot_password_token").custom(async (value: String) => {
+      if (!value) {
+        return Promise.reject("Mã xác minh quên mật khẩu là bắt buộc");
+      }
+      try {
+        const decode_forgot_password_verify_token = await verifyToken(
+          value,
+          process.env.FORGOT_PASSWORD_TOKEN
+        );
+
+        const { userID } = decode_forgot_password_verify_token;
+
+        const user = await UserModel.findOne({ _id: userID });
+
+        if (user === null) {
+          return Promise.reject("Người dùng không tồn tại");
+        }
+        if (user?.forgot_password_token !== value) {
+          return Promise.reject("Mã xác minh quên mật khẩu không hợp lệ");
+        }
+      } catch (error: any) {
+        if (error instanceof jwt.JsonWebTokenError) {
+          return Promise.reject(error.message);
+        } else {
+          return Promise.reject(error.message);
+        }
+      }
+    }),
+  ],
+  validateRequest,
   verifyForgotPassword
 );
 
@@ -319,7 +483,72 @@ router.get(
  *       400:
  *         description: Bad request
  */
-router.post("/reset-password", resetPasswordValidator, resetPassword);
+router.post(
+  "/reset-password",
+  [
+    body("forgot_password_token")
+      .trim()
+      .isEmpty()
+      .withMessage("Mã xác minh quên mật khẩu là bắt buộc")
+      .custom(async (value: String, { req }) => {
+        try {
+          const decode_forgot_password_verify_token = await verifyToken(
+            value,
+            process.env.FORGOT_PASSWORD_TOKEN
+          );
+
+          const { userID } = decode_forgot_password_verify_token;
+
+          const user = await UserModel.findOne({ _id: userID });
+
+          if (user === null) {
+            return Promise.reject("Người dùng không tồn tại");
+          }
+          if (user?.forgot_password_token !== value) {
+            return Promise.reject("Mã xác minh quên mật khẩu không hợp l");
+          }
+          req.decode_forgot_password_verify_token =
+            decode_forgot_password_verify_token;
+        } catch (error: any) {
+          if (error instanceof jwt.JsonWebTokenError) {
+            return Promise.reject(error.message);
+          } else {
+            return Promise.reject(error.message);
+          }
+        }
+      }),
+    body("password")
+      .trim()
+      .isEmpty()
+      .withMessage("Password là bắt buộc")
+      .isLength({ min: 8 })
+      .custom(async (password: string) => {
+        try {
+          const status = await usersService.isPasswordValid(password);
+          if (!status) {
+            return Promise.reject(
+              "Nhập mật khẩu hợp lệ, có ít nhất 8 ký tự gồm 1 chữ cái nhỏ, 1 chữ in hoa, 1 chữ số và 1 ký tự đặc biệt($,@,!,#,*)."
+            );
+          }
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }),
+
+    body("confirmPassword")
+      .trim()
+      .isEmpty()
+      .withMessage("ConfirmPassword là bắt buộc")
+      .custom((value: String, { req }) => {
+        if (value != req.body.password) {
+          return Promise.reject("Mật khẩu không khớp!");
+        }
+        return true;
+      }),
+  ],
+  validateRequest,
+  resetPassword
+);
 
 /**
  * Description: Get Dữ Liệu Người Dùng Đó (Profile) Theo ID
@@ -353,7 +582,7 @@ router.post("/reset-password", resetPasswordValidator, resetPassword);
  *       404:
  *         description: User not found
  */
-router.get("/me", accessTokenValidator, getMeByID);
+router.get("/me", isAuthenticated, getMeByID);
 
 /**
  * @swagger
@@ -378,7 +607,7 @@ router.get("/me", accessTokenValidator, getMeByID);
  *       403:
  *         description: Forbidden (Admin access only)
  */
-router.get("/meAll", accessTokenValidator, isAdmin, getMe);
+router.get("/meAll", isAuthenticated, isAdmin, getAllUser);
 
 /**
  * Description: Update Dữ Liệu Người Dùng Đó (Profile)
@@ -433,103 +662,17 @@ router.get("/meAll", accessTokenValidator, isAdmin, getMe);
  */
 router.patch(
   "/me",
-  accessTokenValidator, // kiểm tra accessToken có hay k
-  verifiedUserValidator, // kiểm tra verify của token có trùng với verify đã khai báo enum
-  updateMeValidator, // kiểm tra dữ liệu validation
-  filterMiddleware([
-    // kiểm tra dữ liệu body k cho nhập vớ vẩn bằng lodash
-    "fullname",
-    "username",
-    "email",
-    "phone",
-    "city",
-    "district",
-    "commune",
-    "address",
-  ]),
+  isAuthenticated,
+  verifiedUserValidator,
+  [
+    body("fullname").optional(true),
+    body("username").optional(true),
+    body("phone").optional(true),
+  ],
+  validateRequest,
   updateMe
 );
 
-/**
- * Description: Update Theo ID Đó Ở Admin
- * Path: /updateUserByID/:id
- * Method : PUT
- * Header : Authorization : Bearer <AccessToken Register Hoặc Login>
- * Body : { Dữ liệu trong schema muốn update }
- */
-/**
- * @swagger
- * /updateUserByID/{id}:
- *   put:
- *     summary: Update user by ID (Admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- *       - isAdmin: []
- *     parameters:
- *       - in: header
- *         name: Authorization
- *         type: string
- *         format: "Bearer <AccessToken>"
- *         required: true
- *       - in: path
- *         name: id
- *         type: string
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               fullname:
- *                 type: string
- *               username:
- *                 type: string
- *               email:
- *                 type: string
- *               phone:
- *                 type: string
- *               city:
- *                 type: string
- *               district:
- *                 type: string
- *               commune:
- *                 type: string
- *               address:
- *                 type: string
- *               role:
- *                 type: string
- *               verify:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: User updated successfully
- *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden (Admin access only)
- */
-router.put(
-  "/updateUserByID/:id",
-  accessTokenValidator, // kiểm tra accessToken có hay k
-  updateMeValidator, // kiểm tra dữ liệu validation
-  filterMiddleware([
-    // kiểm tra dữ liệu body k cho nhập vớ vẩn bằng lodash
-    "fullname",
-    "username",
-    "email",
-    "phone",
-    "city",
-    "district",
-    "commune",
-    "address",
-    "role",
-    "verify",
-  ]),
-  updateUserByID
-);
 /**
  * Description: Change Password
  * Path: /change-password
@@ -577,45 +720,78 @@ router.put(
  */
 router.put(
   "/change-password",
-  accessTokenValidator,
+  isAuthenticated,
   verifiedUserValidator,
-  changePasswordValidator,
+  [
+    body("old_password")
+      .trim()
+      .isEmpty()
+      .withMessage("Password là bắt buộc")
+      .isLength({ min: 8 })
+      .custom(async (value: any, { req }) => {
+        try {
+          const isValidPassword = await usersService.isPasswordValid(value);
+          if (!isValidPassword) {
+            return Promise.reject(
+              "Nhập mật khẩu hợp lệ, có ít nhất 8 ký tự gồm 1 chữ cái nhỏ, 1 chữ in hoa, 1 chữ số và 1 ký tự đặc biệt($,@,!,#,*)."
+            );
+          }
+
+          if (req.decoded_authorization) {
+            const { userID } = req.decoded_authorization;
+            const user = await UserModel.findOne({ _id: userID });
+
+            if (!user) {
+              return Promise.reject("Người dùng không tồn tại");
+            }
+
+            const { password }: any = user;
+            const isMatch = await bcrypt.compare(value, password);
+
+            if (!isMatch) {
+              return Promise.reject("Mật khẩu cũ không khớp");
+            }
+
+            return true;
+          } else {
+            return Promise.reject("Token không hợp lệ hoặc thông tin bị thiếu");
+          }
+        } catch (error: any) {
+          return Promise.reject(error);
+        }
+      }),
+    body("password")
+      .trim()
+      .isEmpty()
+      .withMessage("Password là bắt buộc")
+      .isLength({ min: 8 })
+      .custom(async (password: string) => {
+        try {
+          const status = await usersService.isPasswordValid(password);
+      
+          if (!status) {
+            return Promise.reject(
+              "Nhập mật khẩu hợp lệ, có ít nhất 8 ký tự gồm 1 chữ cái nhỏ, 1 chữ in hoa, 1 chữ số và 1 ký tự đặc biệt($,@,!,#,*)."
+            );
+          }
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }),
+      
+    body("confirmPassword")
+      .trim()
+      .isEmpty()
+      .withMessage("ConfirmPassword là bắt buộc")
+      .custom((value: String, { req }) => {
+        if (value != req.body.password) {
+          return Promise.reject("Mật khẩu không khớp!");
+        }
+        return true;
+      }),
+  ],
+  validateRequest,
   changePassword
 );
-
-/**
- * Description: Delete Người Dùng
- * Path: /deleteUser/:id
- * Header : Authorization : Bearer <AccessToken Register Hoặc Login>
- * Method : DELETE
- */
-/**
- * @swagger
- * /deleteUser/{id}:
- *   delete:
- *     summary: Delete user by ID
- *     tags: [User]
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: header
- *         name: Authorization
- *         type: string
- *         format: "Bearer <AccessToken>"
- *         required: true
- *       - in: path
- *         name: id
- *         type: string
- *     responses:
- *       200:
- *         description: User deleted successfully
- *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- */
-router.delete("/deleteUser/:id", accessTokenValidator, deleteUserByID);
 
 export default router;

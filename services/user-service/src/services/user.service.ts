@@ -1,19 +1,13 @@
 const { ObjectId } = require("mongoose");
 import bcrypt from "bcrypt";
-import { UserModel } from "../models/schemas/User.schemas";
-import { LogModel } from "../models/schemas/Log.schemas";
+import { UserModel } from "../models/user.schemas";
+import { LogModel } from "../../../../shared/models/log.schemas";
 import { generateToken } from "../utils/jwt";
-import { jwtConfig } from "../constants/jwt";
-import { UserRole, UserVerifyStatus } from "../types/user.type";
-import { USER_MESSAGE } from "../constants/message";
-import { createError } from "../utils/error";
+import { UserRole, UserVerifyStatus } from "../utils/user.type";
 const axios = require("axios");
 import { Types } from "mongoose";
-import { emailSMPT } from "../helpers/email.helper";
-import ordersService from "./order.service";
-import commentsService from "./comment.service";
-import couponUsersService from "./couponUser.service";
-import chatsService from "./chat.service";
+import ProjectError from "../utils/error";
+import { emailSMPT } from "../helper/email.helper";
 const mongoose = require("mongoose");
 
 class UsersService {
@@ -31,11 +25,10 @@ class UsersService {
         verify: UserVerifyStatus.Unverified,
         role: UserRole.MEMBER,
       },
-      process.env.EMAIL_VERIFY_TOKEN || jwtConfig.emailVerifyToken,
-      process.env.EMAIL_VERIFY_LIFE || jwtConfig.emailVerifyTokenLife
+      process.env.EMAIL_VERIFY_TOKEN,
+      process.env.EMAIL_VERIFY_LIFE
     );
     const { fullname, username, email, password, ip } = data;
-    // console.log("Email verify token :", email_verify_token);
     emailSMPT.sendEmail(
       email,
       "Xác thực tài khoản",
@@ -64,8 +57,8 @@ class UsersService {
         verify: UserVerifyStatus.Unverified,
         role: UserRole.MEMBER,
       },
-      process.env.ACCESS_TOKEN_SECRET || jwtConfig.accessTokenSecret,
-      process.env.ACCESS_TOKEN_LIFE || jwtConfig.accessTokenLife
+      process.env.ACCESS_TOKEN_SECRET,
+      process.env.ACCESS_TOKEN_LIFE
     );
     let refreshToken = await generateToken(
       {
@@ -73,8 +66,8 @@ class UsersService {
         verify: UserVerifyStatus.Unverified,
         role: UserRole.MEMBER,
       },
-      process.env.REFRESH_TOKEN_SECRET || jwtConfig.refreshTokenSecret,
-      process.env.REFRESH_TOKEN_LIFE || jwtConfig.refreshTokenLife
+      process.env.REFRESH_TOKEN_SECRET,
+      process.env.REFRESH_TOKEN_LIFE
     );
     await UserModel.create({
       _id: userID,
@@ -88,7 +81,7 @@ class UsersService {
     await LogModel.create({
       userID,
       ip,
-      action: `${fullname} ` + USER_MESSAGE.REGISTER_SUCESSS,
+      action: `${fullname} ` + "vừa đăng ký thành công",
     });
     return {
       accessToken,
@@ -102,6 +95,55 @@ class UsersService {
     return Boolean(user);
   }
 
+  async isPasswordValid(password: String) {
+    let flag = 0;
+    if (
+      password.indexOf("!") == -1 &&
+      password.indexOf("@") == -1 &&
+      password.indexOf("#") == -1 &&
+      password.indexOf("$") == -1 &&
+      password.indexOf("*") == -1
+    ) {
+      return false;
+    }
+    for (let ind = 0; ind < password.length; ind++) {
+      let ch = password.charAt(ind);
+      if (ch >= "a" && ch <= "z") {
+        flag = 1;
+        break;
+      }
+      flag = 0;
+    }
+    if (!flag) {
+      return false;
+    }
+    flag = 0;
+    for (let ind = 0; ind < password.length; ind++) {
+      let ch = password.charAt(ind);
+      if (ch >= "A" && ch <= "Z") {
+        flag = 1;
+        break;
+      }
+      flag = 0;
+    }
+    if (!flag) {
+      return false;
+    }
+    flag = 0;
+    for (let ind = 0; ind < password.length; ind++) {
+      let ch = password.charAt(ind);
+      if (ch >= "0" && ch <= "9") {
+        flag = 1;
+        break;
+      }
+      flag = 0;
+    }
+    if (flag) {
+      return true;
+    }
+    return false;
+  }
+
   async login(userID: string, verify: string, ip: any) {
     let user = await UserModel.findOne({ _id: userID });
     if (user) {
@@ -111,8 +153,8 @@ class UsersService {
           verify: verify,
           role: user.role,
         },
-        process.env.ACCESS_TOKEN_SECRET || jwtConfig.accessTokenSecret,
-        process.env.ACCESS_TOKEN_LIFE || jwtConfig.accessTokenLife
+        process.env.ACCESS_TOKEN_SECRET,
+        process.env.ACCESS_TOKEN_LIFE
       );
       let refreshToken = await generateToken(
         {
@@ -120,8 +162,8 @@ class UsersService {
           verify: verify,
           role: user.role,
         },
-        process.env.REFRESH_TOKEN_SECRET || jwtConfig.refreshTokenSecret,
-        process.env.REFRESH_TOKEN_LIFE || jwtConfig.refreshTokenLife
+        process.env.REFRESH_TOKEN_SECRET,
+        process.env.REFRESH_TOKEN_LIFE
       ); // tạo 1 refresh token ngẫu nhiên
       if (!user.refreshToken) {
         await UserModel.updateOne(
@@ -138,16 +180,19 @@ class UsersService {
       await LogModel.create({
         userID,
         ip,
-        action: `${user.fullname} ` + USER_MESSAGE.LOGIN_SUCESSS,
+        action: `${user.fullname} ` + "vừa đăng nhập thành công",
       });
+
       return {
         accessToken,
         refreshToken,
       };
+    } else {
+      return null;
     }
   }
 
-  async loginGoogle(code: string) {
+  async google(code: string) {
     try {
       const body = {
         code,
@@ -188,10 +233,10 @@ class UsersService {
       );
 
       if (!result.data.verified_email) {
-        throw new Error(USER_MESSAGE.GMAIL_NOT_VERIFIED);
+        const err = new ProjectError("Gmail chưa được xác minh");
+        err.statusCode = 500;
+        throw err;
       }
-
-      // Tìm người dùng trong cơ sở dữ liệu hoặc đăng ký nếu chưa tồn tại
       const user = await UserModel.findOne({ email: result.data.email });
 
       if (user) {
@@ -202,8 +247,8 @@ class UsersService {
             verify: user.verify,
             role: user.role,
           },
-          process.env.ACCESS_TOKEN_SECRET || jwtConfig.accessTokenSecret,
-          process.env.ACCESS_TOKEN_LIFE || jwtConfig.accessTokenLife
+          process.env.ACCESS_TOKEN_SECRET,
+          process.env.ACCESS_TOKEN_LIFE
         );
 
         let refreshToken = user.refreshToken;
@@ -215,8 +260,8 @@ class UsersService {
               verify: user.verify,
               role: user.role,
             },
-            process.env.REFRESH_TOKEN_SECRET || jwtConfig.refreshTokenSecret,
-            process.env.REFRESH_TOKEN_LIFE || jwtConfig.refreshTokenLife
+            process.env.REFRESH_TOKEN_SECRET,
+            process.env.REFRESH_TOKEN_LIFE
           );
           await UserModel.updateOne({ _id: user._id }, { refreshToken });
         }
@@ -241,6 +286,11 @@ class UsersService {
       }
     } catch (error) {
       console.error("An error occurred during Google login:", error);
+      const err = new ProjectError(
+        "An error occurred during Google login:" + error
+      );
+      err.statusCode = 500;
+      throw err;
     }
   }
 
@@ -254,23 +304,27 @@ class UsersService {
       if (result) {
         return {
           status: true,
-          message: USER_MESSAGE.LOGOUT_SUCCESS,
+          message: "Đăng xuất thành công",
         };
       } else {
         return {
           status: false,
-          message: USER_MESSAGE.LOGOUT_FAILURE,
+          message: "Đăng xuất thất bại",
         };
       }
     } catch (error) {
-      createError(USER_MESSAGE.SERVER_ERROR, 500);
+      const err = new ProjectError("Lỗi máy chủ :" + error);
+      err.statusCode = 500;
+      throw err;
     }
   }
 
   async verifyEmail(userID: string) {
     const isValidObjectId = mongoose.Types.ObjectId.isValid(userID);
     if (!isValidObjectId) {
-      return console.error("Invalid userID:", userID);
+      const err = new ProjectError("Invalid userID :" + userID);
+      err.statusCode = 500;
+      throw err;
     }
     const [accessToken, refreshToken] = await Promise.all([
       await generateToken(
@@ -278,16 +332,16 @@ class UsersService {
           userID: userID,
           verify: UserVerifyStatus.Verified,
         },
-        process.env.ACCESS_TOKEN_SECRET || jwtConfig.accessTokenSecret,
-        process.env.ACCESS_TOKEN_LIFE || jwtConfig.accessTokenLife
+        process.env.ACCESS_TOKEN_SECRET,
+        process.env.ACCESS_TOKEN_LIFE
       ),
       await generateToken(
         {
           userID: userID,
           verify: UserVerifyStatus.Verified,
         },
-        process.env.REFRESH_TOKEN_SECRET || jwtConfig.refreshTokenSecret,
-        process.env.REFRESH_TOKEN_LIFE || jwtConfig.refreshTokenLife
+        process.env.REFRESH_TOKEN_SECRET,
+        process.env.REFRESH_TOKEN_LIFE
       ),
 
       await UserModel.updateOne(
@@ -324,10 +378,9 @@ class UsersService {
         userID: userID,
         verify: UserVerifyStatus.Unverified,
       },
-      process.env.EMAIL_VERIFY_TOKEN || jwtConfig.emailVerifyToken,
-      process.env.EMAIL_VERIFY_LIFE || jwtConfig.emailVerifyTokenLife
+      process.env.EMAIL_VERIFY_TOKEN,
+      process.env.EMAIL_VERIFY_LIFE
     );
-    console.log("Rensend verify email : ", email_verify_token);
 
     await UserModel.updateOne(
       { _id: new ObjectId(userID) },
@@ -340,7 +393,7 @@ class UsersService {
     );
     return {
       status: true,
-      message: USER_MESSAGE.RESEND_VERIFY_EMAIL_SUCCESS,
+      message: "Gửi lại email xác minh thành công",
     };
   }
 
@@ -350,9 +403,8 @@ class UsersService {
         userID: userID,
         verify: verify,
       },
-      process.env.FORGOT_PASSWORD_TOKEN || jwtConfig.forgotPasswordToken,
-      process.env.FORGOT_PASSWORD_TOKEN_LIFE ||
-        jwtConfig.forgotPasswordTokenLife
+      process.env.FORGOT_PASSWORD_TOKEN,
+      process.env.FORGOT_PASSWORD_TOKEN_LIFE
     );
 
     emailSMPT.sendEmail(
@@ -378,10 +430,6 @@ class UsersService {
       </body>
     </html>`
     );
-    console.log(
-      "Forgot password token đến người dùng : ",
-      forgot_password_token
-    );
 
     await UserModel.updateOne(
       { _id: userID },
@@ -395,7 +443,7 @@ class UsersService {
 
     return {
       status: true,
-      message: USER_MESSAGE.CHECK_EMAIL_TO_RESET_PASSWORD,
+      message: "Kiểm tra email để đặt lại mật khẩu",
     };
   }
 
@@ -415,12 +463,17 @@ class UsersService {
     await LogModel.create({
       userID,
       ip,
-      action: `${user.fullname} ` + USER_MESSAGE.RESET_PASSWORD_SUCCESS,
+      action: `${user.fullname} ` + "vừa đặt lại mật khẩu thành công",
     });
     if (result) {
       return {
         status: true,
-        message: USER_MESSAGE.RESET_PASSWORD_SUCCESS,
+        message: "Đặt lại mật khẩu thành công",
+      };
+    } else {
+      return {
+        status: false,
+        message: "Đặt lại mật khẩu thất bại",
       };
     }
   }
@@ -437,35 +490,31 @@ class UsersService {
         },
       }
     )
-      .sort({ createdAt: -1 })
       .select(
         "-password -refreshToken -email_verify_token -forgot_password_token"
       )
       .exec();
 
-    if (result) {
-      return {
-        status: true,
-        message: USER_MESSAGE.GET_ME_SUCCESS,
-        result,
-      };
-    }
+    return {
+      status: true,
+      message: "Lấy thông tin người dùng thành công",
+      result,
+    };
   }
 
-  async getMe() {
+  async getAllUser() {
     const result = await UserModel.find()
       .sort({ createdAt: -1 })
       .select(
         "-password -refreshToken -email_verify_token -forgot_password_token"
       )
       .exec();
-    if (result) {
-      return {
-        status: true,
-        message: USER_MESSAGE.GET_ME_SUCCESS,
-        result,
-      };
-    }
+
+    return {
+      status: true,
+      message: "Lấy tất cả thông tin người dùng thành công",
+      result,
+    };
   }
 
   async updateMe(userID: string, body: any, ip: any) {
@@ -487,11 +536,11 @@ class UsersService {
         },
       }
     );
-    // await LogModel.create({
-    //   userID,
-    //   ip,
-    //   action: `${user.fullname} ` + USER_MESSAGE.UPDATE_ME_SUCCESS,
-    // });
+    await LogModel.create({
+      userID,
+      ip,
+      action: `${user.fullname} ` + "vừa cập nhật người dùng thành công",
+    });
     return user;
   }
 
@@ -510,66 +559,12 @@ class UsersService {
     await LogModel.create({
       userID,
       ip,
-      action: `${user.fullname} ` + USER_MESSAGE.CHANGE_PASSWORD_SUCCESS,
+      action: `${user.fullname} ` + "vừa cập nhật mật khẩu mới thành công",
     });
     return {
       status: true,
-      message: USER_MESSAGE.CHANGE_PASSWORD_SUCCESS,
+      message: "Cập nhật mật khẩu mới thành công",
     };
-  }
-
-  async deleteUserByID(id: string) {
-    try {
-      const exsitUser = await ordersService.checkExist(`userID`, id);
-      const exsitComment = await commentsService.checkExist(`userID`, id);
-      const exsitCoupon = await couponUsersService.checkExist(`userID`, id);
-      const exsitChat = await chatsService.checkExist(`userID`, id);
-
-      if (exsitUser) {
-        return {
-          status: false,
-          message:
-            "Không thể xóa người dùng vì nó được sử dụng trong đặt hàng!",
-        };
-      }
-
-      if (exsitComment) {
-        return {
-          status: false,
-          message:
-            "Không thể xóa người dùng vì nó được sử dụng trong đánh giá & bình luận!",
-        };
-      }
-
-      if (exsitCoupon) {
-        return {
-          status: false,
-          message:
-            "Không thể xóa người dùng vì nó được sử dụng trong áp dụng khuyến mãi!",
-        };
-      }
-
-      if (exsitChat) {
-        return {
-          status: false,
-          message:
-            "Không thể xóa người dùng vì nó được sử dụng trong đoạn chat!",
-        };
-      }
-
-      // Nếu người dùng không được sử dụng trong bảng khác, thực hiện xóa
-      await UserModel.deleteOne({ _id: id });
-      return {
-        status: true,
-        message: USER_MESSAGE.DELETE_USER_SUCCESS,
-      };
-    } catch (error) {
-      console.error(error);
-      return {
-        status: false,
-        message: "Đã xảy ra lỗi khi thực hiện xóa người dùng.",
-      };
-    }
   }
 
   async refreshToken(
@@ -585,8 +580,8 @@ class UsersService {
           verify: verify,
           role: role,
         },
-        process.env.ACCESS_TOKEN_SECRET || jwtConfig.accessTokenSecret,
-        process.env.ACCESS_TOKEN_LIFE || jwtConfig.accessTokenLife
+        process.env.ACCESS_TOKEN_SECRET,
+        process.env.ACCESS_TOKEN_LIFE
       ),
       await generateToken(
         {
@@ -594,8 +589,8 @@ class UsersService {
           verify: verify,
           role: role,
         },
-        process.env.REFRESH_TOKEN_SECRET || jwtConfig.refreshTokenSecret,
-        process.env.REFRESH_TOKEN_LIFE || jwtConfig.refreshTokenLife
+        process.env.REFRESH_TOKEN_SECRET,
+        process.env.REFRESH_TOKEN_LIFE
       ),
       await UserModel.updateOne(
         { refreshToken: refreshToken },

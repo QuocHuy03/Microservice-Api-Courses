@@ -7,7 +7,9 @@ import {
   EmailRequest,
   ForgotPasswordRequest,
   RefreshToken,
-} from "../models/requests/request";
+} from "../utils/interfaces";
+import ProjectError from "../utils/error";
+import { UserVerifyStatus } from "../utils/user.type";
 
 export const register = async (req: express.Request, res: express.Response) => {
   const { fullname, username, email, password } = req.body;
@@ -21,61 +23,61 @@ export const register = async (req: express.Request, res: express.Response) => {
       ip,
     });
     if (result) {
-      const io = getIOS();
-      io.emit(
-        SOCKET_USER.REGISTER_USER,
-        `Register [ ${fullname} ] successfully`
-      );
       res.status(200).json({
         status: true,
-        message: USER_MESSAGE.REGISTER_SUCESSS,
+        message: "Đăng ký thành công",
         result,
       });
     }
-  } catch (err) {
-    console.log(err);
-    return res
-      .status(500)
-      .json({ status: false, message: "Lỗi trong quá trình đăng ký" });
+  } catch (error) {
+    const err = new ProjectError(`Lỗi trong quá trình đăng ký : ${error}}`);
+    err.statusCode = 500;
+    throw err;
   }
 };
 
 export const login = async (req: express.Request, res: express.Response) => {
-  const { email, password } = req.body;
-  const user: any = await UserModel.findOne({ email: email });
-  if (user === null) {
-    return res.status(200).json({
-      status: false,
-      message: USER_MESSAGE.USER_NOT_FOUND,
-    });
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-
-  if (!isPasswordValid) {
-    return res.status(200).json({
-      status: false,
-      message: USER_MESSAGE.INVALID_PASSWORD,
-    });
-  }
-  const userID: IUser = user._id;
-  const ip = req.socket.localAddress;
   try {
+    const { email, password } = req.body;
+    const user: any = await UserModel.findOne({ email: email });
+
+    if (user === null) {
+      const err = new ProjectError(`Không tìm thấy người dùng`);
+      err.statusCode = 500;
+      throw err;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      const err = new ProjectError(`Mật khẩu không hợp lệ`);
+      err.statusCode = 500;
+      throw err;
+    }
+
+    const userID: any = user._id;
+    const ip = req.socket.localAddress;
+
     const result = await usersService.login(userID.toString(), user.verify, ip);
+
     if (result) {
-      const io = getIOS();
-      io.emit(SOCKET_USER.LOGIN_USER, `Login [ ${email} ] successfully`);
       return res.status(200).json({
         status: true,
-        message: USER_MESSAGE.LOGIN_SUCESSS,
+        message: "Đăng nhập thành công",
         result,
       });
     }
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ status: false, message: "Lỗi trong quá trình đăng nhập", err });
+  } catch (error) {
+    const err = new ProjectError(`Lỗi trong quá trình đăng nhập: ${error}`);
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có lỗi xảy ra và không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình đăng nhập",
+  });
 };
 
 export const logout = async (req: express.Request, res: express.Response) => {
@@ -85,10 +87,10 @@ export const logout = async (req: express.Request, res: express.Response) => {
     if (result) {
       res.status(200).json(result);
     }
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ status: false, message: "Lỗi trong quá trình đăng xuất" });
+  } catch (error) {
+    const err = new ProjectError(`Lỗi trong quá trình đăng xuất : ${error}}`);
+    err.statusCode = 500;
+    throw err;
   }
 };
 
@@ -96,8 +98,8 @@ export const refreshToken = async (
   req: express.Request & RefreshToken,
   res: express.Response
 ) => {
-  if (req.decode_refreshToken) {
-    try {
+  try {
+    if (req.decode_refreshToken) {
       const { userID, verify, role } = req.decode_refreshToken;
       const { refreshToken } = req.body;
 
@@ -106,10 +108,9 @@ export const refreshToken = async (
       });
 
       if (!user) {
-        return res.status(500).json({
-          status: false,
-          message: USER_MESSAGE.USER_NOT_FOUND,
-        });
+        const err = new ProjectError(`Không tìm thấy người dùng`);
+        err.statusCode = 500;
+        throw err;
       }
 
       const result = await usersService.refreshToken(
@@ -122,20 +123,28 @@ export const refreshToken = async (
       if (result) {
         return res.status(200).json({
           status: true,
-          message: USER_MESSAGE.REFRESH_TOKEN_SUCCESS,
+          message: "RefreshToken thành công",
           result,
         });
       }
-    } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+    } else {
+      const err = new ProjectError(
+        `Token không hợp lệ hoặc thông tin bị thiếu`
+      );
+      err.statusCode = 500;
+      throw err;
     }
-  } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+  } catch (error: any) {
+    const err = new ProjectError(`Lỗi trong quá trình refreshToken : ${error}`);
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình refreshToken",
+  });
 };
 
 export const emailVerify = async (
@@ -150,17 +159,15 @@ export const emailVerify = async (
         _id: userID,
       });
       if (!user) {
-        return res.status(500).json({
-          status: false,
-          message: USER_MESSAGE.USER_NOT_FOUND,
-        });
+        const err = new ProjectError(`Không tìm thấy người dùng`);
+        err.statusCode = 500;
+        throw err;
       }
 
       if (user?.email_verify_token === "") {
-        return res.status(200).json({
-          status: false,
-          message: USER_MESSAGE.EMAIL_ALREADY_VERIFIED_BEFORE,
-        });
+        const err = new ProjectError(`Email đã được xác minh trước đó`);
+        err.statusCode = 500;
+        throw err;
       }
 
       const result: any = await usersService.verifyEmail(userID);
@@ -170,14 +177,16 @@ export const emailVerify = async (
         return res.redirect(urlRedirect);
       }
     } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+      const err = new ProjectError(
+        `Lỗi trong quá trình verifyEmail : ${error}}`
+      );
+      err.statusCode = 500;
+      throw err;
     }
   } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+    const err = new ProjectError(`Token không hợp lệ hoặc thông tin bị thiếu`);
+    err.statusCode = 500;
+    throw err;
   }
 };
 
@@ -185,8 +194,8 @@ export const resendVerifyEmail = async (
   req: express.Request & AuthorizationRequest,
   res: express.Response
 ) => {
-  if (req.decoded_authorization) {
-    try {
+  try {
+    if (req.decoded_authorization) {
       const { userID } = req.decoded_authorization;
 
       const user = await UserModel.findOne({
@@ -194,32 +203,42 @@ export const resendVerifyEmail = async (
       });
 
       if (!user) {
-        return res.status(500).json({
-          status: false,
-          message: USER_MESSAGE.USER_NOT_FOUND,
-        });
+        const err = new ProjectError(`Không tìm thấy người dùng`);
+        err.statusCode = 500;
+        throw err;
       }
 
       if (user.verify === UserVerifyStatus.Verified) {
-        return res.status(200).json({
-          status: false,
-          message: USER_MESSAGE.EMAIL_ALREADY_VERIFIED_BEFORE,
-        });
+        const err = new ProjectError(`Email đã được xác minh trước đó`);
+        err.statusCode = 500;
+        throw err;
       }
+
       const result = await usersService.resendVerifyEmail(userID);
+
       if (result) {
         return res.status(200).json(result);
       }
-    } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+    } else {
+      const err = new ProjectError(
+        `Token không hợp lệ hoặc thông tin bị thiếu`
+      );
+      err.statusCode = 500;
+      throw err;
     }
-  } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+  } catch (error: any) {
+    const err = new ProjectError(
+      `Lỗi trong quá trình sendVerifyEmail : ${error}`
+    );
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình sendVerifyEmail",
+  });
 };
 
 export const forgotPassword = async (
@@ -229,24 +248,30 @@ export const forgotPassword = async (
   try {
     const { email }: any = req.body;
     const { user }: any = req;
-    const userID: IUser = user._id;
+    const userID: any = user._id;
+
     const result = await usersService.forgotPassword(
       userID.toString(),
       user.verify,
       email
     );
+
     if (result) {
-      const io = getIOS();
-      io.emit(
-        SOCKET_USER.FOTGOT_PASSWORD,
-        `Fotgot Password [ ${email} ] successfully`
-      );
       return res.status(200).json(result);
     }
   } catch (error: any) {
-    console.error("Error :", error);
-    return res.status(500).json({ status: false, message: error });
+    const err = new ProjectError(
+      `Lỗi trong quá trình forgotPassword : ${error}`
+    );
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình forgotPassword",
+  });
 };
 
 export const verifyForgotPassword = async (
@@ -263,115 +288,132 @@ export const resetPassword = async (
   req: express.Request & ForgotPasswordRequest,
   res: express.Response
 ) => {
-  const ip = req.socket.localAddress;
-  if (req.decode_forgot_password_verify_token) {
-    try {
+  try {
+    const ip = req.socket.localAddress;
+
+    if (req.decode_forgot_password_verify_token) {
       const { userID } = req.decode_forgot_password_verify_token;
       const { password }: any = req.body;
+
       const result = await usersService.resetPassword(userID, password, ip);
+
       if (result) {
         return res.status(200).json(result);
       }
-    } catch (error) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+    } else {
+      const err = new ProjectError(
+        `Token không hợp lệ hoặc thông tin bị thiếu`
+      );
+      err.statusCode = 500;
+      throw err;
     }
-  } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+  } catch (error: any) {
+    const err = new ProjectError(
+      `Lỗi trong quá trình resetPassword : ${error}`
+    );
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình resetPassword",
+  });
 };
 
 export const getMeByID = async (
   req: express.Request & AuthorizationRequest,
   res: express.Response
 ) => {
-  if (req.decoded_authorization) {
-    try {
+  try {
+    if (req.decoded_authorization) {
       const { userID } = req.decoded_authorization;
       const result = await usersService.getMeByID(userID);
+
       if (result) {
         return res.status(200).json(result);
       }
-    } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+    } else {
+      const err = new ProjectError(
+        `Token không hợp lệ hoặc thông tin bị thiếu`
+      );
+      err.statusCode = 500;
+      throw err;
     }
-  } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+  } catch (error: any) {
+    const err = new ProjectError(`Lỗi trong quá trình getMeByID : ${error}`);
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình getMeByID",
+  });
 };
 
-export const getMe = async (req: express.Request, res: express.Response) => {
+export const getAllUser = async (
+  __: express.Request,
+  res: express.Response
+) => {
   try {
-    const result = await usersService.getMe();
+    const result = await usersService.getAllUser();
     if (result) {
       return res.status(200).json(result);
     }
   } catch (error: any) {
-    console.error("Error :", error);
-    return res.status(500).json({ status: false, message: error });
+    const err = new ProjectError(`Lỗi trong quá trình getAllUser : ${error}`);
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình getAllUser",
+  });
 };
 
 export const updateMe = async (
   req: express.Request & AuthorizationRequest,
   res: express.Response
 ) => {
-  const ip = req.socket.localAddress;
-  if (req.decoded_authorization) {
-    try {
+  try {
+    const ip = req.socket.localAddress;
+
+    if (req.decoded_authorization) {
       const { userID } = req.decoded_authorization;
       const body = req.body;
+
       const user = await usersService.updateMe(userID, body, ip);
+
       if (user) {
         return res.status(200).json({
           status: true,
-          message: USER_MESSAGE.UPDATE_ME_SUCCESS,
+          message: "Cập nhật thông tin người dùng thành công",
           user,
         });
       }
-    } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
-    }
-  } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
-  }
-};
-
-export const updateUserByID = async (
-  req: express.Request,
-  res: express.Response
-) => {
-  const ip = req.socket.localAddress;
-  try {
-    const existing = await usersService.checkExist(`_id`, req.params.id);
-    if (!existing) {
-      return res
-        .status(500)
-        .json({ status: false, message: USER_MESSAGE.USER_NOT_FOUND });
-    }
-    const user = await usersService.updateMe(req.params.id, req.body, ip);
-    if (user) {
-      return res.status(200).json({
-        status: true,
-        message: USER_MESSAGE.UPDATE_ME_SUCCESS,
-        user,
-      });
+    } else {
+      const err = new ProjectError(
+        `Token không hợp lệ hoặc thông tin bị thiếu`
+      );
+      err.statusCode = 500;
+      throw err;
     }
   } catch (error: any) {
-    console.error("Error :", error);
-    return res.status(500).json({ status: false, message: error });
+    const err = new ProjectError(`Lỗi trong quá trình updateMe : ${error}`);
+    err.statusCode = 500;
+    throw err;
   }
+
+  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình updateMe",
+  });
 };
 
 export const changePassword = async (
@@ -388,15 +430,21 @@ export const changePassword = async (
         return res.status(200).json(result);
       }
     } catch (error: any) {
-      console.error("Error :", error);
-      return res.status(500).json({ status: false, message: error });
+      const err = new ProjectError(
+        `Lỗi trong quá trình changePassword : ${error}}`
+      );
+      err.statusCode = 500;
+      throw err;
     }
   } else {
-    return res.status(500).json({
-      status: false,
-      message: USER_MESSAGE.ERROR_TOKEN_OR_PAYLOAD,
-    });
+    const err = new ProjectError(`Token không hợp lệ hoặc thông tin bị thiếu`);
+    err.statusCode = 500;
+    throw err;
   }
+  return res.status(500).json({
+    status: false,
+    message: "Đã xảy ra lỗi trong quá trình changePassword",
+  });
 };
 
 export const loginGoogle = async (
@@ -404,24 +452,9 @@ export const loginGoogle = async (
   res: express.Response
 ) => {
   const { code } = req.query;
-  const result: any = await usersService.loginGoogle(code as string);
+  const result: any = await usersService.google(code as string);
   if (result) {
     const urlRedirect = `${process.env.CLIENT_REDIRECT_CALLBACK_LOGIN_GOOGLE}?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}&newUser=${result.newUser}&verify=${result.verify}`;
     return res.redirect(urlRedirect);
-  }
-};
-
-export const deleteUserByID = async (
-  req: express.Request,
-  res: express.Response
-) => {
-  try {
-    const result = await usersService.deleteUserByID(req.params.id);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ status: false, message: USER_MESSAGE.ERROR_DELETE_USER });
   }
 };
