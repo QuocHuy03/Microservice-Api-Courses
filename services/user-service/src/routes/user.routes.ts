@@ -67,19 +67,19 @@ router.post(
     body("fullname")
       .trim()
       .not()
-      .isEmpty()
+      .notEmpty()
       .withMessage("Họ và tên là bắt buộc")
       .isLength({ min: 4 })
       .withMessage("Vui lòng nhập tên hợp lệ, dài tối thiểu 4 ký tự"),
     body("email")
       .trim()
-      .isEmpty()
+      .notEmpty()
       .withMessage("Email là bắt buộc")
       .isEmail()
+      .withMessage("Thông tin email không hợp lệ!")
       .custom(async (value: any) => {
         try {
           const status = await usersService.checkExist("email", value);
-
           if (status) {
             return Promise.reject("Người dùng đã tồn tại!");
           }
@@ -90,8 +90,8 @@ router.post(
 
     body("password")
       .trim()
-      .isEmpty()
-      .withMessage("Password là bắt buộc")
+      .notEmpty()
+      .withMessage("Mật khẩu là bắt buộc")
       .isLength({ min: 8 })
       .custom(async (password: string) => {
         try {
@@ -108,8 +108,8 @@ router.post(
       }),
     body("confirmPassword")
       .trim()
-      .isEmpty()
-      .withMessage("ConfirmPassword là bắt buộc")
+      .notEmpty()
+      .withMessage("Nhập lại mật khẩu là bắt buộc")
       .custom((value: String, { req }) => {
         if (value != req.body.password) {
           return Promise.reject("Mật khẩu không khớp!");
@@ -148,14 +148,14 @@ router.post(
   [
     body("email")
       .trim()
-      .isEmpty()
+      .notEmpty()
       .withMessage("Email là bắt buộc")
       .isEmail()
-      .withMessage("Thông tin không hợp lệ!"),
+      .withMessage("Thông tin email không hợp lệ!"),
     body("password")
       .trim()
-      .isEmpty()
-      .withMessage("Password là bắt buộc")
+      .notEmpty()
+      .withMessage("Mật khẩu là bắt buộc")
       .isLength({ min: 8 })
       .custom(async (password: string) => {
         try {
@@ -169,7 +169,6 @@ router.post(
           return Promise.reject(err);
         }
       })
-
       .withMessage("Thông tin không hợp lệ!"),
   ],
   validateRequest,
@@ -247,7 +246,7 @@ router.post(
   [
     body("refreshToken")
       .trim()
-      .isEmpty()
+      .notEmpty()
       .withMessage("RefreshToken là bắt buộc")
       .custom(async (value: String, { req }) => {
         try {
@@ -375,7 +374,7 @@ router.post(
   [
     body("email")
       .trim()
-      .isEmpty()
+      .notEmpty()
       .withMessage("Email là bắt buộc")
       .isEmail()
       .withMessage("Thông tin email không hợp lệ")
@@ -488,7 +487,7 @@ router.post(
   [
     body("forgot_password_token")
       .trim()
-      .isEmpty()
+      .notEmpty()
       .withMessage("Mã xác minh quên mật khẩu là bắt buộc")
       .custom(async (value: String, { req }) => {
         try {
@@ -519,8 +518,8 @@ router.post(
       }),
     body("password")
       .trim()
-      .isEmpty()
-      .withMessage("Password là bắt buộc")
+      .notEmpty()
+      .withMessage("Mật khẩu là bắt buộc")
       .isLength({ min: 8 })
       .custom(async (password: string) => {
         try {
@@ -537,8 +536,8 @@ router.post(
 
     body("confirmPassword")
       .trim()
-      .isEmpty()
-      .withMessage("ConfirmPassword là bắt buộc")
+      .notEmpty()
+      .withMessage("Nhập lại mật khẩu là bắt buộc")
       .custom((value: String, { req }) => {
         if (value != req.body.password) {
           return Promise.reject("Mật khẩu không khớp!");
@@ -725,8 +724,8 @@ router.put(
   [
     body("old_password")
       .trim()
-      .isEmpty()
-      .withMessage("Password là bắt buộc")
+      .notEmpty()
+      .withMessage("Mật khẩu là bắt buộc")
       .isLength({ min: 8 })
       .custom(async (value: any, { req }) => {
         try {
@@ -762,8 +761,8 @@ router.put(
       }),
     body("password")
       .trim()
-      .isEmpty()
-      .withMessage("Password là bắt buộc")
+      .notEmpty()
+      .withMessage("Mật khẩu là bắt buộc")
       .isLength({ min: 8 })
       .custom(async (password: string) => {
         try {
@@ -781,8 +780,8 @@ router.put(
       
     body("confirmPassword")
       .trim()
-      .isEmpty()
-      .withMessage("ConfirmPassword là bắt buộc")
+      .notEmpty()
+      .withMessage("Nhập lại mật khẩu là bắt buộc")
       .custom((value: String, { req }) => {
         if (value != req.body.password) {
           return Promise.reject("Mật khẩu không khớp!");
