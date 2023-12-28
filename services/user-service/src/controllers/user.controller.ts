@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import express from "express";
+import express, { NextFunction } from "express";
 import usersService from "../services/user.service";
 import { UserModel } from "../models/user.schemas";
 import {
@@ -36,7 +36,11 @@ export const register = async (req: express.Request, res: express.Response) => {
   }
 };
 
-export const login = async (req: express.Request, res: express.Response) => {
+export const login = async (
+  req: express.Request,
+  res: express.Response,
+  next: NextFunction
+) => {
   try {
     const { email, password } = req.body;
     const user: any = await UserModel.findOne({ email: email });
@@ -68,19 +72,15 @@ export const login = async (req: express.Request, res: express.Response) => {
       });
     }
   } catch (error) {
-    const err = new ProjectError(`Lỗi trong quá trình đăng nhập: ${error}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có lỗi xảy ra và không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình đăng nhập",
-  });
 };
 
-export const logout = async (req: express.Request, res: express.Response) => {
+export const logout = async (
+  req: express.Request,
+  res: express.Response,
+  next: NextFunction
+) => {
   const { refreshToken }: any = req.body;
   try {
     const result = await usersService.logout(refreshToken);
@@ -88,15 +88,14 @@ export const logout = async (req: express.Request, res: express.Response) => {
       res.status(200).json(result);
     }
   } catch (error) {
-    const err = new ProjectError(`Lỗi trong quá trình đăng xuất : ${error}}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
 };
 
 export const refreshToken = async (
   req: express.Request & RefreshToken,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     if (req.decode_refreshToken) {
@@ -135,21 +134,13 @@ export const refreshToken = async (
       throw err;
     }
   } catch (error: any) {
-    const err = new ProjectError(`Lỗi trong quá trình refreshToken : ${error}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình refreshToken",
-  });
 };
 
 export const emailVerify = async (
   req: express.Request & EmailRequest,
-  res: express.Response
+  res: express.Response, next: NextFunction
 ) => {
   if (req.decode_email_verify_token) {
     try {
@@ -177,11 +168,7 @@ export const emailVerify = async (
         return res.redirect(urlRedirect);
       }
     } catch (error: any) {
-      const err = new ProjectError(
-        `Lỗi trong quá trình verifyEmail : ${error}}`
-      );
-      err.statusCode = 500;
-      throw err;
+     next(error);
     }
   } else {
     const err = new ProjectError(`Token không hợp lệ hoặc thông tin bị thiếu`);
@@ -192,7 +179,8 @@ export const emailVerify = async (
 
 export const resendVerifyEmail = async (
   req: express.Request & AuthorizationRequest,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     if (req.decoded_authorization) {
@@ -227,23 +215,14 @@ export const resendVerifyEmail = async (
       throw err;
     }
   } catch (error: any) {
-    const err = new ProjectError(
-      `Lỗi trong quá trình sendVerifyEmail : ${error}`
-    );
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình sendVerifyEmail",
-  });
 };
 
 export const forgotPassword = async (
   req: express.Request,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     const { email }: any = req.body;
@@ -260,18 +239,8 @@ export const forgotPassword = async (
       return res.status(200).json(result);
     }
   } catch (error: any) {
-    const err = new ProjectError(
-      `Lỗi trong quá trình forgotPassword : ${error}`
-    );
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình forgotPassword",
-  });
 };
 
 export const verifyForgotPassword = async (
@@ -286,7 +255,8 @@ export const verifyForgotPassword = async (
 
 export const resetPassword = async (
   req: express.Request & ForgotPasswordRequest,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     const ip = req.socket.localAddress;
@@ -308,23 +278,14 @@ export const resetPassword = async (
       throw err;
     }
   } catch (error: any) {
-    const err = new ProjectError(
-      `Lỗi trong quá trình resetPassword : ${error}`
-    );
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình resetPassword",
-  });
 };
 
 export const getMeByID = async (
   req: express.Request & AuthorizationRequest,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     if (req.decoded_authorization) {
@@ -342,21 +303,14 @@ export const getMeByID = async (
       throw err;
     }
   } catch (error: any) {
-    const err = new ProjectError(`Lỗi trong quá trình getMeByID : ${error}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình getMeByID",
-  });
 };
 
 export const getAllUser = async (
   __: express.Request,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     const result = await usersService.getAllUser();
@@ -364,21 +318,14 @@ export const getAllUser = async (
       return res.status(200).json(result);
     }
   } catch (error: any) {
-    const err = new ProjectError(`Lỗi trong quá trình getAllUser : ${error}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình getAllUser",
-  });
 };
 
 export const updateMe = async (
   req: express.Request & AuthorizationRequest,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   try {
     const ip = req.socket.localAddress;
@@ -404,21 +351,14 @@ export const updateMe = async (
       throw err;
     }
   } catch (error: any) {
-    const err = new ProjectError(`Lỗi trong quá trình updateMe : ${error}`);
-    err.statusCode = 500;
-    throw err;
+    next(error);
   }
-
-  // Trả về một giá trị mặc định nếu không có giá trị nào được trả về trong try
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình updateMe",
-  });
 };
 
 export const changePassword = async (
   req: express.Request & AuthorizationRequest,
-  res: express.Response
+  res: express.Response,
+  next: NextFunction
 ) => {
   const ip = req.socket.localAddress;
   if (req.decoded_authorization) {
@@ -430,21 +370,13 @@ export const changePassword = async (
         return res.status(200).json(result);
       }
     } catch (error: any) {
-      const err = new ProjectError(
-        `Lỗi trong quá trình changePassword : ${error}}`
-      );
-      err.statusCode = 500;
-      throw err;
+      next(error);
     }
   } else {
     const err = new ProjectError(`Token không hợp lệ hoặc thông tin bị thiếu`);
     err.statusCode = 500;
     throw err;
   }
-  return res.status(500).json({
-    status: false,
-    message: "Đã xảy ra lỗi trong quá trình changePassword",
-  });
 };
 
 export const loginGoogle = async (

@@ -35,7 +35,6 @@ app.get("/", (__: Request, res: Response) => {
 
 app.use(
   (err: ProjectError, req: Request, res: Response, next: NextFunction) => {
-    // logger for err
     let message: String;
     let statusCode: number;
 

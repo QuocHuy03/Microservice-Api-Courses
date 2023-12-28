@@ -1,7 +1,6 @@
 const { ObjectId } = require("mongoose");
 import bcrypt from "bcrypt";
 import { UserModel } from "../models/user.schemas";
-import { LogModel } from "../../../../shared/models/log.schemas";
 import { generateToken } from "../utils/jwt";
 import { UserRole, UserVerifyStatus } from "../utils/user.type";
 const axios = require("axios");
@@ -78,11 +77,6 @@ class UsersService {
       email: email,
       password: hashedPassword,
     });
-    await LogModel.create({
-      userID,
-      ip,
-      action: `${fullname} ` + "vừa đăng ký thành công",
-    });
     return {
       accessToken,
       refreshToken,
@@ -145,6 +139,7 @@ class UsersService {
   }
 
   async login(userID: string, verify: string, ip: any) {
+    console.log(userID)
     let user = await UserModel.findOne({ _id: userID });
     if (user) {
       const accessToken = await generateToken(
@@ -177,11 +172,6 @@ class UsersService {
       } else {
         refreshToken = user.refreshToken;
       }
-      await LogModel.create({
-        userID,
-        ip,
-        action: `${user.fullname} ` + "vừa đăng nhập thành công",
-      });
 
       return {
         accessToken,
@@ -460,11 +450,7 @@ class UsersService {
         },
       }
     );
-    await LogModel.create({
-      userID,
-      ip,
-      action: `${user.fullname} ` + "vừa đặt lại mật khẩu thành công",
-    });
+
     if (result) {
       return {
         status: true,
@@ -536,16 +522,10 @@ class UsersService {
         },
       }
     );
-    await LogModel.create({
-      userID,
-      ip,
-      action: `${user.fullname} ` + "vừa cập nhật người dùng thành công",
-    });
     return user;
   }
 
   async changePassword(userID: string, password: any, ip: any) {
-    let user: any = await UserModel.findOne({ _id: userID });
     const hashedPassword = await bcrypt.hash(password, 10);
     await UserModel.updateOne(
       { _id: userID },
@@ -556,11 +536,7 @@ class UsersService {
         },
       }
     );
-    await LogModel.create({
-      userID,
-      ip,
-      action: `${user.fullname} ` + "vừa cập nhật mật khẩu mới thành công",
-    });
+
     return {
       status: true,
       message: "Cập nhật mật khẩu mới thành công",
