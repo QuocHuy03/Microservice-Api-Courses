@@ -3,7 +3,7 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Đồ Án Tốt Nghiệp',
+      title: 'Courses',
       version: '1.0.0',
       description: 'API documentation for your Express application',
       author: {

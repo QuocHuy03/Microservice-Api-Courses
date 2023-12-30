@@ -50,7 +50,7 @@ export const isAuthenticated = async (
         throw err;
       }
 
-      req.decodedToken = decodedToken;
+      req.decoded_authorization = decodedToken;
       next();
     } catch (error) {
       next(error);

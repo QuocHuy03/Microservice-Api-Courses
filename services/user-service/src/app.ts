@@ -37,12 +37,11 @@ app.use(
   (err: ProjectError, req: Request, res: Response, next: NextFunction) => {
     let message: String;
     let statusCode: number;
-
-    if (!!err.statusCode && err.statusCode < 500) {
+    if (!!err.statusCode && err.statusCode <= 500) {
       message = err.message;
       statusCode = err.statusCode;
     } else {
-      message = "Something went wrong please try after sometime!";
+      message = err.message;
       statusCode = 500;
     }
 

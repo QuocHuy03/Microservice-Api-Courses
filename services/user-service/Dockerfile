@@ -1,6 +1,6 @@
 FROM node
 
-WORKDIR /app/courses-service
+WORKDIR /app/user-service
 
 COPY package.json .
 
@@ -8,6 +8,6 @@ RUN npm run dev
 
 COPY . .
 
-EXPOSE 8001
+EXPOSE 8002
 
 CMD ["npm", "dev"]
