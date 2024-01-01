@@ -6,13 +6,12 @@
     "module": "commonjs",
     "outDir": "./dist",
     "strict": true,
-    "types": ["node", "express"],
     "baseUrl": "./",
     "paths": {
       "*": ["node_modules/*"]
     },
     "allowSyntheticDefaultImports": true
   },
-  "include": ["services/**/*.ts", "api-gateway/*.ts"],
+  "include": ["services/**/*.ts", "api-gateway/*.ts", "shared/**/*.ts"],
   "exclude": ["node_modules"]
 }

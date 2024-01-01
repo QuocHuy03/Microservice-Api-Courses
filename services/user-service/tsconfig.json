@@ -3,7 +3,7 @@
   "compilerOptions": {
     "types": ["node", "express"]
   },
-  "typeRoots": ["./node_modules/@types", "./types"],
+  "typeRoots": ["./node_modules/@types", "./types", "../../shared/**/*.ts"],
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }

@@ -6,11 +6,11 @@ const mongoose = require("mongoose");
 import dotenv from "dotenv";
 import http from "http";
 import cors from "cors";
-import userRouter from "./routes/user.routes";
+import courseRouter from "./routes/course.routes";
 import swaggerSpec from "./swagger";
 import ProjectError from "./utils/error";
 import { ReturnResponse } from "./utils/interfaces";
-
+ 
 const app = express();
 const server = http.createServer(app);
 dotenv.config();
@@ -25,12 +25,12 @@ app.use(
     credentials: true,
   })
 );
-app.use("/v1/user-service", userRouter);
+app.use("/v1/course-service", courseRouter);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get("/", (__: Request, res: Response) => {
-  res.json({ status: 200, message: "Welcome to the API UserService!" });
+  res.json({ status: 200, message: "Welcome to the API CourseService!" });
 });
 
 app.use(
@@ -61,7 +61,7 @@ mongoose
     console.log("MongoDB is ready");
 
     server.listen(port, () => {
-      console.log(`SERVER USER_SERVICE RUNNING : ${port}`);
+      console.log(`SERVER COURSE_SERVICE RUNNING : ${port}`);
     });
   })
   .catch((err: any) => {

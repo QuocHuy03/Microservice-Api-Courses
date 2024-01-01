@@ -1,9 +1,8 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["express"],
-    "outDir": "./dist"
+    "types": ["node", "express"]
   },
-  "include": ["./app.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }

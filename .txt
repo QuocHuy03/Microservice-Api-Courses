@@ -17,6 +17,8 @@
 |   |-- app.ts
 |   |-- tsconfig.json
 |-- shared/
+|   |-- middlewares/
+|       |-- auth.middleware.ts
 |   |-- models/
 |   |-- utils/
 |-- package.json

@@ -24,7 +24,7 @@ import {
   isAdmin,
   isAuthenticated,
   verifiedUserValidator,
-} from "../middlewares/auth.middlewares";
+} from "../../../../shared/middlewares/auth.middleware";
 import { verifyToken } from "../utils/jwt";
 import { UserModel } from "../models/user.schemas";
 

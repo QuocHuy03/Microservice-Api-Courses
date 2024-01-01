@@ -3,7 +3,6 @@ import ProjectError from "../utils/error";
 import { UserRole, UserVerifyStatus } from "../utils/user.type";
 import { verifyToken } from "../utils/jwt";
 import { AuthorizationRequest, DecodedToken } from "../utils/interfaces";
-import { UserModel } from "../models/user.schemas";
 
 export const verifiedUserValidator = (
   req: Request & AuthorizationRequest,
@@ -67,27 +66,16 @@ export const isAdmin = async (
 ) => {
   try {
     if (req.decoded_authorization) {
-      const { userID } = req.decoded_authorization;
+      const { verify, role } = req.decoded_authorization;
 
-      const user = await UserModel.findOne({
-        _id: userID,
-      });
-
-      if (!user) {
-        const err = new ProjectError("Người dùng không tồn tại!");
-        err.statusCode = 500;
-        throw err;
-      }
-
-      if (user.verify === UserVerifyStatus.Verified) {
+      if (verify === UserVerifyStatus.Verified) {
         const err = new ProjectError("Email đã được xác minh trước đó");
         err.statusCode = 500;
         throw err;
       }
-
-      if (user.role === UserRole.ADMIN) {
+      if (role === UserRole.ADMIN) {
         next();
-        return; // Thêm giá trị trả về mặc định ở đây
+        return; 
       } else {
         const err = new ProjectError(
           "Truy cập bị từ chối. Bạn không phải là quản trị viên."
@@ -96,7 +84,9 @@ export const isAdmin = async (
         throw err;
       }
     } else {
-      const err = new ProjectError("Token không hợp lệ hoặc thông tin bị thiếu");
+      const err = new ProjectError(
+        "Token không hợp lệ hoặc thông tin bị thiếu"
+      );
       err.statusCode = 500;
       throw err;
     }
@@ -108,4 +98,3 @@ export const isAdmin = async (
     });
   }
 };
-

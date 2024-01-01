@@ -7,18 +7,19 @@ services:
     container_name: mongo-db
     volumes:
       - ./db/:/data/db
-
+    environment:
+      - MONGO_URI=mongodb+srv://qhuydev:1Qu3suVc1hEEdi6d@cluster0.dek5hts.mongodb.net/project-user-service?retryWrites=true&w=majority
   rabbitmq:
     image: rabbitmq:alpine
     container_name: rabbitmq
     ports:
       - '5672:5672'
 
-  products:
+  users:
     build:
       dockerfile: Dockerfile
-      context: ./products
-    container_name: products
+      context: ./user-service
+    container_name: users
     ports:
       - "8002:8002"
     restart: always
@@ -27,26 +28,10 @@ services:
       - "rabbitmq"
     volumes:
       - .:/app
-      - /app/products/node_modules
+      - /app/user-service/node_modules
 
     env_file:
-      - ./products/.env.dev
-  shopping:
-    build:
-      dockerfile: Dockerfile
-      context: ./shopping
-    container_name: shopping
-    ports:
-      - "8003:8003"
-    restart: always
-    depends_on:
-      - "nosql-db"
-      - "rabbitmq"
-    volumes:
-      - .:/app
-      - /app/shopping/node_modules
-    env_file:
-      - ./shopping/.env.dev
+      - ./user-service/.env.dev
 
   nginx-proxy:
     build:
