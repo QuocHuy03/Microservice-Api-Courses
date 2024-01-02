@@ -1,5 +1,5 @@
 const { ObjectId } = require("mongoose");
-import { UserModel } from "../models/course.schemas";
+import { C } from "../models/course.schemas";
 
 import { UserRole, UserVerifyStatus } from "../utils/user.type";
 const axios = require("axios");
@@ -7,7 +7,7 @@ import { Types } from "mongoose";
 import ProjectError from "../utils/error";
 const mongoose = require("mongoose");
 
-class UsersService {
+class CoursesService {
   async register(data: {
     fullname: string;
     username: string;
@@ -583,5 +583,5 @@ class UsersService {
   }
 }
 
-const usersService = new UsersService();
-export default usersService;
+const coursesService = new CoursesService();
+export default coursesService;
