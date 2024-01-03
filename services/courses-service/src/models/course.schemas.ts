@@ -10,6 +10,7 @@ const coursesSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    category_id: { type: mongoose.Schema.Types.ObjectId, ref: "Categories" },
     content: {
       type: String,
       required: true,
