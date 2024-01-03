@@ -1,13 +1,11 @@
-import { CourseModel } from "../models/course.schemas";
-const axios = require("axios");
+import { TrackModel } from "../models/track.schemas";
 import slugify from "slugify";
-const mongoose = require("mongoose");
 
-class CoursesService {
+class TracksService {
   async checkExist(key: string, value: string) {
     const query = { [key]: value };
-    const course = await CourseModel.findOne(query);
-    return Boolean(course);
+    const track = await TrackModel.findOne(query);
+    return Boolean(track);
   }
 
   async create(data: any) {
@@ -15,14 +13,14 @@ class CoursesService {
     if (exsit) {
       return {
         status: false,
-        message: "Khóa học đã tồn tại",
+        message: "Nội dung bài học đã tồn tại",
       };
     }
     const slug = slugify(data.title, { lower: true });
-    const result = await CourseModel.create({ ...data, slug: slug });
+    const result = await TrackModel.create({ ...data, slug: slug });
     return {
       status: true,
-      message: "Thêm khóa học thành công",
+      message: "Thêm nội dung bài học thành công",
       result,
     };
   }
@@ -32,7 +30,7 @@ class CoursesService {
     if (exsit) {
       return {
         status: false,
-        message: "Khóa học đã tồn tại",
+        message: "Thêm nội dung bài học đã tồn tại",
       };
     }
     const updatedData: any = {
@@ -44,7 +42,7 @@ class CoursesService {
     }
 
     // Thực hiện cập nhật
-    const result = await CourseModel.findOneAndUpdate(
+    const result = await TrackModel.findOneAndUpdate(
       { slug: slug },
       { $set: updatedData },
       { returnDocument: "after" }
@@ -52,27 +50,27 @@ class CoursesService {
 
     return {
       status: true,
-      message: "Cập nhật khóa học thành công",
+      message: "Cập nhật nội dung bài học thành công",
       result,
     };
   }
 
   async delete(id: string) {
-    const exsit = await coursesService.checkExist(`categoryID`, id);
+    const exsit = await tracksService.checkExist(`categoryID`, id);
     if (exsit) {
       return {
         status: false,
         message: "Không thể xóa danh mục vì nó được sử dụng trong thương hiệu!",
       };
     }
-    await CourseModel.deleteOne({ _id: id });
+    await TrackModel.deleteOne({ _id: id });
     return {
       status: true,
-      message: "Xóa khóa học thành công",
+      message: "Xóa nội dung bài học thành công",
     };
   }
 
 }
 
-const coursesService = new CoursesService();
-export default coursesService;
+const tracksService = new TracksService();
+export default tracksService;

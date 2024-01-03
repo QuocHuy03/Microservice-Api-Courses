@@ -14,6 +14,22 @@ const stepsSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    video_url: {
+      type: String,
+      required: true,
+    },
+    original_name: {
+      type: String,
+      required: true,
+    },
+    video_type: {
+      type: String,
+      required: true,
+    },
+    video: {
+      type: String,
+      required: true,
+    },
     track_id: { type: mongoose.Schema.Types.ObjectId, ref: "Tracks" },
   },
   {

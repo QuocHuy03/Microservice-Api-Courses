@@ -3,9 +3,6 @@ import express, { NextFunction } from "express";
 import coursesService from "../services/course.service";
 import {
   AuthorizationRequest,
-  EmailRequest,
-  ForgotPasswordRequest,
-  RefreshToken,
 } from "../utils/interfaces";
 import ProjectError from "../utils/error";
 import { UserVerifyStatus } from "../utils/user.type";
