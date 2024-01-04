@@ -1,13 +1,136 @@
+import mongoose from "mongoose";
 import { CourseModel } from "../models/course.schemas";
-const axios = require("axios");
 import slugify from "slugify";
-const mongoose = require("mongoose");
 
 class CoursesService {
   async checkExist(key: string, value: string) {
     const query = { [key]: value };
     const course = await CourseModel.findOne(query);
     return Boolean(course);
+  }
+
+  async getAll() {
+    const result = await CourseModel.aggregate([
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: "$category",
+      },
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+    ]);
+    if (result) {
+      return {
+        status: true,
+        message: "Lấy tất cả dữ liệu khóa học thành công",
+        result,
+      };
+    }
+  }
+
+  async getByID(id: string) {
+    const result = await CourseModel.aggregate([
+      {
+        $match: { _id: new mongoose.Types.ObjectId(id) },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: "$category",
+      },
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+    ]);
+
+    return {
+      status: true,
+      message: "Lấy dữ liệu khóa học thành công",
+      result: result[0],
+    };
+  }
+
+  async getProductsByCategory(slug: string) {
+    const products: any = await this.getAll();
+    const filterOfCategory: any = products?.result.filter(
+      (item: any) => item.category.slugCategory === slug
+    );
+
+    return {
+      status: true,
+      message: "Lấy dữ liệu khóa học thành công",
+      result: filterOfCategory,
+    };
+  }
+
+  async getBySlug(slug: string) {
+    const result = await CourseModel.aggregate([
+      {
+        $match: { slug: slug },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: "$category",
+      },
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+    ]);
+
+    return {
+      status: true,
+      message: "Lấy dữ liệu khóa học thành công",
+      result: result[0],
+    };
+  }
+
+  async getSearch(label: any) {
+    const regexPattern = new RegExp(`^${label}`, "i");
+    const result = await CourseModel.aggregate([
+      {
+        $match: {
+          title: regexPattern,
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: "$category",
+      },
+    ]);
+    return result;
   }
 
   async create(data: any) {
@@ -71,7 +194,6 @@ class CoursesService {
       message: "Xóa khóa học thành công",
     };
   }
-
 }
 
 const coursesService = new CoursesService();

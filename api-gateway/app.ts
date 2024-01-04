@@ -1,36 +1,22 @@
-
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
+const express = require("express");
+const bodyParser = require("body-parser");
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const port = 3000;
 
 app.use(bodyParser.json());
 
-const userServiceUrl = 'http://localhost:3001';
-const productServiceUrl = 'http://localhost:3002';
+const routes: any = {
+  "/users": "http://localhost:8002",
+  "/products": "http://localhost:8001",
+  "/orders": "http://localhost:8003",
+};
 
-app.post('/users', async (req, res) => {
-  const response = await axios.post(`${userServiceUrl}/users`, req.body);
-  res.json(response.data);
-});
-
-app.get('/users', async (req, res) => {
-  const response = await axios.get(`${userServiceUrl}/users`);
-  res.json(response.data);
-});
-
-app.post('/products', async (req, res) => {
-  const response = await axios.post(`${productServiceUrl}/products`, req.body);
-  res.json(response.data);
-});
-
-app.get('/products', async (req, res) => {
-  const response = await axios.get(`${productServiceUrl}/products`);
-  res.json(response.data);
-});
-
+for (const route in routes) {
+  const target = routes[route];
+  app.use(route, createProxyMiddleware({ target }));
+}
 app.listen(port, () => {
   console.log(`API Gateway listening at http://localhost:${port}`);
 });
